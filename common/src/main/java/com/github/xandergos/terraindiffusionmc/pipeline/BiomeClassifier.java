@@ -91,9 +91,9 @@ public final class BiomeClassifier {
         for (int r = 0; r < H; r++) {
             for (int c = 0; c < W; c++) {
                 int idx = r * W + c;
-                out[idx] = classifyPixel(elev[idx], slopeRatio[idx],
+                out[idx] = classifyAndRefine(elev[idx], slopeRatio[idx],
                         climate[idx], climate[H * W + idx], climate[2 * H * W + idx], climate[3 * H * W + idx],
-                        tempNoise[idx], precipNoiseFact[idx], snowNoise[idx]);
+                        tempNoise[idx], precipNoiseFact[idx], snowNoise[idx], i0 + r, j0 + c);
             }
         }
         return out;
@@ -101,7 +101,7 @@ public final class BiomeClassifier {
 
     /**
      * Classifies a single location with an explicit slope, sampling the same noise perturbations
-     * {@link #classify} uses at native pixel coordinates (row {@code i}, column {@code j}).
+     * {@link #classify} uses at its world coordinates (row {@code i} = Z, column {@code j} = X).
      * Used for coarse-map searches, where slope cannot be derived from the coarse grid itself.
      */
     public static short classifyAt(float elevM, float slope, float temp, float tSeason, float precip, float pCV,
@@ -109,7 +109,19 @@ public final class BiomeClassifier {
         float tempNoise = 0.4f * TEMP_NOISE.GetNoise(j, i) + 0.2f * TEMP_NOISE_FINE.GetNoise(j, i);
         float precipNoiseFact = 1.0f + 0.2f * PRECIP_NOISE.GetNoise(j, i);
         float snowNoise = 3.0f * SNOW_NOISE.GetNoise(j, i) + 2.0f * SNOW_NOISE_FINE.GetNoise(j, i);
-        return classifyPixel(elevM, slope, temp, tSeason, precip, pCV, tempNoise, precipNoiseFact, snowNoise);
+        return classifyAndRefine(elevM, slope, temp, tSeason, precip, pCV, tempNoise, precipNoiseFact, snowNoise, i, j);
+    }
+
+    /**
+     * Vanilla class from {@link #classifyPixel}, then a Terralith variant of it from
+     * {@link TerralithBiomes#refine}. Variant ids resolve back to the vanilla class when Terralith is absent.
+     */
+    private static short classifyAndRefine(float elevVal, float slope, float tempRaw, float tSeason, float precipRaw,
+                                           float pCV, float tempNoise, float precipNoiseFact, float snowNoise,
+                                           float i, float j) {
+        short base = classifyPixel(elevVal, slope, tempRaw, tSeason, precipRaw, pCV, tempNoise, precipNoiseFact, snowNoise);
+        return TerralithBiomes.refine(base, elevVal, slope, tempRaw + tempNoise, tSeason,
+                Math.max(0f, precipRaw) * precipNoiseFact, pCV, i, j);
     }
 
     /** Biome rules for one pixel. Climate inputs are raw; noise perturbations are applied here. */

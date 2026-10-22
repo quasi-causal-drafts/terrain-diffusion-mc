@@ -4,6 +4,8 @@ import com.github.xandergos.terraindiffusionmc.config.TerrainDiffusionConfig;
 import com.github.xandergos.terraindiffusionmc.pipeline.CoarseTerrainSearch;
 import com.github.xandergos.terraindiffusionmc.pipeline.LocalTerrainProvider;
 import com.github.xandergos.terraindiffusionmc.pipeline.LocalTerrainProvider.HeightmapData;
+import com.github.xandergos.terraindiffusionmc.pipeline.TerralithBiomes;
+import com.github.xandergos.terraindiffusionmc.pipeline.TerralithBiomes.TerralithBiome;
 import com.mojang.datafixers.util.Pair;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -25,7 +27,9 @@ import net.minecraft.world.level.biome.Climate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -44,7 +48,10 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
 
 
     private HolderGetter<Biome> biomeLookup;
-    private Map<Short, Holder<Biome>> biomeIdMap = null;
+    /** Vanilla classifier ids. Assigned last in {@link #requireBiomeIdMap}, after {@link #terralithBiomes}. */
+    private volatile Map<Short, Holder<Biome>> biomeIdMap = null;
+    /** Terralith biomes by {@link TerralithBiome} ordinal; null entries when Terralith is not installed. */
+    private Holder<Biome>[] terralithBiomes;
 
     public TerrainDiffusionBiomeSource(HolderGetter<Biome> biomeLookup) {
         this.biomeLookup = biomeLookup;
@@ -57,6 +64,13 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
 
     private void requireBiomeIdMap() {
         if (biomeIdMap == null) {
+            initBiomeIdMap();
+        }
+    }
+
+    private synchronized void initBiomeIdMap() {
+        if (biomeIdMap == null) {
+            terralithBiomes = lookUpTerralithBiomes();
             biomeIdMap = Map.ofEntries(
                     entry((short) 1, this.biomeLookup.getOrThrow(Biomes.PLAINS)),
                     entry((short) 3, this.biomeLookup.getOrThrow(Biomes.SNOWY_PLAINS)),
@@ -88,7 +102,48 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
     @Override
     protected Stream<Holder<Biome>> collectPossibleBiomes() {
         requireBiomeIdMap();
-        return biomeIdMap.values().stream();
+        return Stream.concat(biomeIdMap.values().stream(), Arrays.stream(terralithBiomes).filter(Objects::nonNull));
+    }
+
+    /**
+     * Terralith biomes used by the classifier, or nulls when Terralith is not installed. The getter can throw
+     * for keys that do not exist (depending on which registry stage it came from), so absence is detected by
+     * catching that rather than by asking for the key first.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Holder<Biome>[] lookUpTerralithBiomes() {
+        TerralithBiome[] wanted = TerralithBiome.values();
+        Holder<Biome>[] found = new Holder[wanted.length];
+        int count = 0;
+        for (TerralithBiome biome : wanted) {
+            ResourceKey<Biome> key = ResourceKey.create(Registries.BIOME, new ResourceLocation("terralith", biome.path()));
+            try {
+                found[biome.ordinal()] = this.biomeLookup.get(key).orElse(null);
+            } catch (RuntimeException absent) {
+                found[biome.ordinal()] = null;
+            }
+            if (found[biome.ordinal()] != null) {
+                count++;
+            }
+        }
+        if (count > 0) {
+            LOG.info("Terralith detected: using {} of {} mapped Terralith biomes", count, wanted.length);
+        } else {
+            LOG.info("Terralith not installed: using vanilla biomes");
+        }
+        return found;
+    }
+
+    /** Resolves a classifier id: a Terralith biome when installed, otherwise the vanilla biome it replaces. */
+    private Holder<Biome> resolve(short id) {
+        if (TerralithBiomes.isVariant(id)) {
+            Holder<Biome> terralith = terralithBiomes[TerralithBiomes.terralithOf(id).ordinal()];
+            if (terralith != null) {
+                return terralith;
+            }
+            id = TerralithBiomes.fallbackOf(id);
+        }
+        return biomeIdMap.get(id);
     }
 
     @Override
@@ -115,7 +170,7 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
         if (data != null && data.biomeIds != null) {
             int localX = Math.max(0, Math.min(data.width  - 1, blockX - blockStartX));
             int localZ = Math.max(0, Math.min(data.height - 1, blockZ - blockStartZ));
-            Holder<Biome> entry = biomeIdMap.get(data.biomeIds[localZ][localX]);
+            Holder<Biome> entry = resolve(data.biomeIds[localZ][localX]);
             if (entry != null) return entry;
         }
 
@@ -137,14 +192,14 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
             CoarseTerrainSearch.Hit hit = CoarseTerrainSearch.forCurrentWorld().findBiome(
                     origin.getX(), origin.getZ(), radius,
                     biomeId -> {
-                        Holder<Biome> biome = biomeIdMap.get(biomeId);
+                        Holder<Biome> biome = resolve(biomeId);
                         return biome != null && predicate.test(biome);
                     });
             if (hit == null) {
                 return null;
             }
             int y = HeightConverter.estimateMinecraftHeight(hit.elevationM(), WorldScaleManager.getCurrentScale());
-            return Pair.of(new BlockPos(hit.blockX(), Math.max(y, SEA_LEVEL_Y), hit.blockZ()), biomeIdMap.get(hit.biomeId()));
+            return Pair.of(new BlockPos(hit.blockX(), Math.max(y, SEA_LEVEL_Y), hit.blockZ()), resolve(hit.biomeId()));
         } catch (Exception e) {
             LOG.warn("Coarse biome search failed: {}", e.toString());
             return null;

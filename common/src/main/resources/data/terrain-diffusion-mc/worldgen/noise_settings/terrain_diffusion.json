@@ -92,7 +92,14 @@
           "biome_is": [
             "minecraft:snowy_plains",
             "minecraft:snowy_taiga",
-            "terrain-diffusion-mc:snowy_taiga_sparse"
+            "terrain-diffusion-mc:snowy_taiga_sparse",
+            "terralith:alpine_grove",
+            "terralith:ice_marsh",
+            "terralith:siberian_taiga",
+            "terralith:snowy_cherry_grove",
+            "terralith:snowy_maple_forest",
+            "terralith:snowy_shield",
+            "terralith:wintry_forest"
           ]
         },
         "then_run": {
@@ -141,7 +148,11 @@
               "if_true": {
                 "type": "minecraft:biome",
                 "biome_is": [
-                  "minecraft:desert"
+                  "minecraft:desert",
+                  "terralith:ancient_sands",
+                  "terralith:desert_oasis",
+                  "terralith:lush_desert",
+                  "terralith:sandstone_valley"
                 ]
               },
               "then_run": {
@@ -186,7 +197,8 @@
               "if_true": {
                 "type": "minecraft:biome",
                 "biome_is": [
-                  "minecraft:frozen_peaks"
+                  "minecraft:frozen_peaks",
+                  "terralith:frozen_cliffs"
                 ]
               },
               "then_run": {
@@ -201,7 +213,11 @@
               "if_true": {
                 "type": "minecraft:biome",
                 "biome_is": [
-                  "minecraft:stony_peaks"
+                  "minecraft:stony_peaks",
+                  "terralith:basalt_cliffs",
+                  "terralith:granite_cliffs",
+                  "terralith:rocky_mountains",
+                  "terralith:white_cliffs"
                 ]
               },
               "then_run": {
@@ -315,7 +331,11 @@
               "if_true": {
                 "type": "minecraft:biome",
                 "biome_is": [
-                  "minecraft:desert"
+                  "minecraft:desert",
+                  "terralith:ancient_sands",
+                  "terralith:desert_oasis",
+                  "terralith:lush_desert",
+                  "terralith:sandstone_valley"
                 ]
               },
               "then_run": {
@@ -360,7 +380,8 @@
               "if_true": {
                 "type": "minecraft:biome",
                 "biome_is": [
-                  "minecraft:frozen_peaks"
+                  "minecraft:frozen_peaks",
+                  "terralith:frozen_cliffs"
                 ]
               },
               "then_run": {
@@ -376,7 +397,11 @@
                 "type": "minecraft:biome",
                 "biome_is": [
                   "minecraft:stony_peaks",
-                  "minecraft:windswept_hills"
+                  "minecraft:windswept_hills",
+                  "terralith:basalt_cliffs",
+                  "terralith:granite_cliffs",
+                  "terralith:rocky_mountains",
+                  "terralith:white_cliffs"
                 ]
               },
               "then_run": {

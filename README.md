@@ -52,6 +52,14 @@ Both commands search the coarse terrain map (one cell is 256 × world scale bloc
 - `/td-locate <mountains|highest|flatlands|ocean|land> [radius]` finds terrain features (default radius 8000 blocks). `mountains` means an average elevation of at least 2000 m or more than 600 m of relief; `flatlands` means land below 300 m with less than 60 m of relief. Click the coordinates to get a teleport command aimed above the terrain.
 - `/locate biome <biome>` works in Terrain Diffusion worlds, including biome tags such as `#minecraft:is_mountain`. Peaks are found in rugged areas whose steep ground would produce them. Note that Terrain Diffusion uses its own sparse forest and taiga variants (for example `terrain-diffusion-mc:taiga_sparse`).
 
+### Terralith biomes
+
+If [Terralith](https://modrinth.com/mod/terralith) is installed, Terrain Diffusion worlds use 49 Terralith biomes alongside vanilla ones; without it, worlds generate exactly as before. Each Terralith biome stands in for the vanilla biome Terrain Diffusion would otherwise place (for example shield or birch taiga for taiga, steppe or shrubland for dry grassland, white or granite cliffs for steep coasts), chosen by altitude, temperature, rainfall, slope and large-scale regions. Rare themed regions (moonlight, lavender, sakura) span neighbouring forests and meadows.
+
+- Terrain shape and ground blocks stay Terrain Diffusion's: Terralith biomes bring their trees, plants, colors and mobs, and use the same ground blocks as the vanilla biome they replace. Terralith biomes defined mainly by their own terrain or surface blocks (spires, canyons, chasms, volcanic areas, sky islands) are not used.
+- Terralith 2.5.x for 1.20.1 overrides the overworld dimension, which would otherwise replace a Terrain Diffusion world; Terrain Diffusion worlds keep their own overworld. Other world types still get Terralith's.
+- Worlds created with Terralith installed before this support existed already have Terralith's overworld saved, so create a new world.
+
 ## Configuration
 
 Edit `config/terrain-diffusion-mc.properties` (created automatically on first launch):
