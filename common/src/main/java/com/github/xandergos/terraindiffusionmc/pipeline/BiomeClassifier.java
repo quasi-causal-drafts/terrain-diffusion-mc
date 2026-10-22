@@ -91,143 +91,160 @@ public final class BiomeClassifier {
         for (int r = 0; r < H; r++) {
             for (int c = 0; c < W; c++) {
                 int idx = r * W + c;
-                float elevVal   = elev[idx];
-                float altM      = Math.max(0f, elevVal);
-                float slope     = slopeRatio[idx];
-
-                // Climate channels: [0]=temp, [1]=t_season, [2]=precip, [3]=p_cv
-                float temp     = climate[idx] + tempNoise[idx];
-                float tSeason  = climate[H * W + idx];
-                float precip   = Math.max(0f, climate[2 * H * W + idx]) * precipNoiseFact[idx];
-                float pCV      = climate[3 * H * W + idx];
-
-                // Derived climate variables
-                float tStd     = tSeason / 100f;
-                float tEff     = Math.max(0f, temp + 0.5f * tStd);
-                float pet      = Math.max(250f, 250f + 25f * tEff + 0.7f * tEff * tEff);
-                float aridity  = precip / Math.max(1f, pet);
-                float seasonPenalty = 1f - 0.35f * Math.min(1f, pCV / 100f);
-                float treeMoisture = aridity * seasonPenalty;
-
-                // Growing season
-                float amplitude = tStd * 1.414f;
-                float growingSeason;
-                if (amplitude < 0.1f) {
-                    growingSeason = temp > 5f ? 365f : 0f;
-                } else {
-                    float x = (5f - temp) / amplitude;
-                    if (x <= -1f) growingSeason = 365f;
-                    else if (x >= 1f) growingSeason = 0f;
-                    else growingSeason = 365f * (0.5f - (float) Math.asin(Math.max(-1f, Math.min(1f, x))) / (float) Math.PI);
-                }
-
-                float gsFactor = Math.max(0f, Math.min(1f, (growingSeason - 60f) / (150f - 60f)));
-                float effTreeMoisture = treeMoisture * gsFactor;
-
-                // Slope-dependent bare threshold
-                float moistureFactor = Math.max(0f, Math.min(1f, (treeMoisture - 0.35f) / 0.45f));
-                float bareThreshold = 0.7f + (1.19f - 0.7f) * moistureFactor;
-
-                // Tree coverage classification
-                boolean treesNone = effTreeMoisture < 0.2f;
-                boolean tooArid   = treeMoisture < 0.05f;
-                boolean tooCold   = growingSeason < 60f;
-                boolean barren    = tooArid || tooCold;
-                boolean treesSparse    = !treesNone && effTreeMoisture < 0.5f;
-                boolean treesForest    = !treesNone && effTreeMoisture >= 0.5f && effTreeMoisture < 0.8f;
-                boolean treesDense     = !treesNone && effTreeMoisture >= 0.8f && effTreeMoisture < 1.3f;
-                boolean treesRainforest = !treesNone && effTreeMoisture >= 1.3f;
-
-                // Slope overrides
-                boolean slopeMedium = slope >= 0.62f && slope < bareThreshold;
-                boolean slopeBare   = slope >= bareThreshold;
-                if (slopeMedium) {
-                    if (treesForest || treesDense || treesRainforest) { treesSparse = true; }
-                    treesForest = treesForest && false; treesDense = false; treesRainforest = false;
-                }
-                if (slopeBare) {
-                    treesNone = true; treesSparse = false; treesForest = false;
-                    treesDense = false; treesRainforest = false;
-                }
-
-                // Snow classification
-                float snowTemp = temp + snowNoise[idx];
-                boolean isSteep = slope > 0.78f;
-                boolean hasSnow = snowTemp < 0f && precip > 150f && !isSteep;
-
-                // Elevation/temp bands
-                boolean isOcean   = elevVal < 0f;
-                boolean mountains = altM > 2500f;
-                boolean lowland   = altM < 200f;
-                boolean frozen    = temp < -5f;
-                boolean cold      = temp >= -5f && temp < 5f;
-                boolean cool      = temp >= 5f  && temp < 12f;
-                boolean temperate = temp >= 12f && temp < 20f;
-                boolean warm      = temp >= 20f && temp < 26f;
-                boolean hot       = temp >= 26f;
-
-                short biome = PLAINS;
-
-                if (isOcean) {
-                    if (frozen) biome = FROZEN_OCEAN;
-                    else if (cold) biome = COLD_OCEAN;
-                    else if (warm || hot) biome = WARM_OCEAN;
-                    else biome = OCEAN;
-                } else if (mountains) {
-                    if (slopeBare) {
-                        biome = hasSnow ? FROZEN_PEAKS : STONY_PEAKS;
-                    } else if (hasSnow) {
-                        if (treesNone) biome = SNOWY_SLOPES;
-                        else if (treesSparse || treesForest) biome = SNOWY_TAIGA_SPARSE;
-                        else biome = SNOWY_TAIGA;
-                    } else if (treesNone) {
-                        if (barren) biome = WINDSWEPT_HILLS;
-                        else if (treeMoisture < 0.35f || precip < 350f) biome = GROVE;
-                        else biome = PLAINS;
-                    } else if (treesSparse || treesForest) {
-                        biome = TAIGA_SPARSE;
-                    } else {
-                        biome = TAIGA;
-                    }
-                } else {
-                    // Lowland/midland
-                    if (hasSnow && treesNone) {
-                        biome = SNOWY_PLAINS;
-                    } else if (hasSnow) {
-                        biome = (treesSparse || treesForest) ? SNOWY_TAIGA_SPARSE : SNOWY_TAIGA;
-                    } else if (treesNone) {
-                        if (warm || hot) biome = DESERT;
-                        else if (barren && !lowland && (cold || cool || temperate)) biome = GROVE;
-                        else if (treeMoisture < 0.35f || precip < 350f) biome = GROVE;
-                        else biome = PLAINS;
-                    } else if (treesSparse || treesForest) {
-                        if (hot) biome = JUNGLE;
-                        else if (warm && treesSparse && !slopeMedium) biome = SAVANNA;
-                        else if (warm && treesForest) biome = FOREST_SPARSE;
-                        else if (temperate) biome = FOREST_SPARSE;
-                        else biome = TAIGA_SPARSE;
-                    } else if (treesDense) {
-                        if (hot) biome = JUNGLE;
-                        else if (warm && lowland) biome = SWAMP;
-                        else if (cool || cold) biome = TAIGA;
-                        else biome = FOREST;
-                    } else { // rainforest
-                        if (hot || (warm && temp >= 18f && tStd < 5f)) biome = JUNGLE;
-                        else if (lowland) biome = SWAMP;
-                        else if (cool || cold) biome = TAIGA;
-                        else biome = FOREST;
-                    }
-                }
-
-                // Bare slope override for lowland/non-mountain cliffs
-                if (slopeBare && !isOcean && !mountains) {
-                    biome = hasSnow ? FROZEN_PEAKS : STONY_PEAKS;
-                }
-
-                out[idx] = biome;
+                out[idx] = classifyPixel(elev[idx], slopeRatio[idx],
+                        climate[idx], climate[H * W + idx], climate[2 * H * W + idx], climate[3 * H * W + idx],
+                        tempNoise[idx], precipNoiseFact[idx], snowNoise[idx]);
             }
         }
         return out;
+    }
+
+    /**
+     * Classifies a single location with an explicit slope, sampling the same noise perturbations
+     * {@link #classify} uses at native pixel coordinates (row {@code i}, column {@code j}).
+     * Used for coarse-map searches, where slope cannot be derived from the coarse grid itself.
+     */
+    public static short classifyAt(float elevM, float slope, float temp, float tSeason, float precip, float pCV,
+                                   float i, float j) {
+        float tempNoise = 0.4f * TEMP_NOISE.GetNoise(j, i) + 0.2f * TEMP_NOISE_FINE.GetNoise(j, i);
+        float precipNoiseFact = 1.0f + 0.2f * PRECIP_NOISE.GetNoise(j, i);
+        float snowNoise = 3.0f * SNOW_NOISE.GetNoise(j, i) + 2.0f * SNOW_NOISE_FINE.GetNoise(j, i);
+        return classifyPixel(elevM, slope, temp, tSeason, precip, pCV, tempNoise, precipNoiseFact, snowNoise);
+    }
+
+    /** Biome rules for one pixel. Climate inputs are raw; noise perturbations are applied here. */
+    static short classifyPixel(float elevVal, float slope, float tempRaw, float tSeason, float precipRaw, float pCV,
+                               float tempNoise, float precipNoiseFact, float snowNoise) {
+        float altM      = Math.max(0f, elevVal);
+
+        // Climate channels: [0]=temp, [1]=t_season, [2]=precip, [3]=p_cv
+        float temp     = tempRaw + tempNoise;
+        float precip   = Math.max(0f, precipRaw) * precipNoiseFact;
+
+        // Derived climate variables
+        float tStd     = tSeason / 100f;
+        float tEff     = Math.max(0f, temp + 0.5f * tStd);
+        float pet      = Math.max(250f, 250f + 25f * tEff + 0.7f * tEff * tEff);
+        float aridity  = precip / Math.max(1f, pet);
+        float seasonPenalty = 1f - 0.35f * Math.min(1f, pCV / 100f);
+        float treeMoisture = aridity * seasonPenalty;
+
+        // Growing season
+        float amplitude = tStd * 1.414f;
+        float growingSeason;
+        if (amplitude < 0.1f) {
+            growingSeason = temp > 5f ? 365f : 0f;
+        } else {
+            float x = (5f - temp) / amplitude;
+            if (x <= -1f) growingSeason = 365f;
+            else if (x >= 1f) growingSeason = 0f;
+            else growingSeason = 365f * (0.5f - (float) Math.asin(Math.max(-1f, Math.min(1f, x))) / (float) Math.PI);
+        }
+
+        float gsFactor = Math.max(0f, Math.min(1f, (growingSeason - 60f) / (150f - 60f)));
+        float effTreeMoisture = treeMoisture * gsFactor;
+
+        // Slope-dependent bare threshold
+        float moistureFactor = Math.max(0f, Math.min(1f, (treeMoisture - 0.35f) / 0.45f));
+        float bareThreshold = 0.7f + (1.19f - 0.7f) * moistureFactor;
+
+        // Tree coverage classification
+        boolean treesNone = effTreeMoisture < 0.2f;
+        boolean tooArid   = treeMoisture < 0.05f;
+        boolean tooCold   = growingSeason < 60f;
+        boolean barren    = tooArid || tooCold;
+        boolean treesSparse    = !treesNone && effTreeMoisture < 0.5f;
+        boolean treesForest    = !treesNone && effTreeMoisture >= 0.5f && effTreeMoisture < 0.8f;
+        boolean treesDense     = !treesNone && effTreeMoisture >= 0.8f && effTreeMoisture < 1.3f;
+        boolean treesRainforest = !treesNone && effTreeMoisture >= 1.3f;
+
+        // Slope overrides
+        boolean slopeMedium = slope >= 0.62f && slope < bareThreshold;
+        boolean slopeBare   = slope >= bareThreshold;
+        if (slopeMedium) {
+            if (treesForest || treesDense || treesRainforest) { treesSparse = true; }
+            treesForest = treesForest && false; treesDense = false; treesRainforest = false;
+        }
+        if (slopeBare) {
+            treesNone = true; treesSparse = false; treesForest = false;
+            treesDense = false; treesRainforest = false;
+        }
+
+        // Snow classification
+        float snowTemp = temp + snowNoise;
+        boolean isSteep = slope > 0.78f;
+        boolean hasSnow = snowTemp < 0f && precip > 150f && !isSteep;
+
+        // Elevation/temp bands
+        boolean isOcean   = elevVal < 0f;
+        boolean mountains = altM > 2500f;
+        boolean lowland   = altM < 200f;
+        boolean frozen    = temp < -5f;
+        boolean cold      = temp >= -5f && temp < 5f;
+        boolean cool      = temp >= 5f  && temp < 12f;
+        boolean temperate = temp >= 12f && temp < 20f;
+        boolean warm      = temp >= 20f && temp < 26f;
+        boolean hot       = temp >= 26f;
+
+        short biome = PLAINS;
+
+        if (isOcean) {
+            if (frozen) biome = FROZEN_OCEAN;
+            else if (cold) biome = COLD_OCEAN;
+            else if (warm || hot) biome = WARM_OCEAN;
+            else biome = OCEAN;
+        } else if (mountains) {
+            if (slopeBare) {
+                biome = hasSnow ? FROZEN_PEAKS : STONY_PEAKS;
+            } else if (hasSnow) {
+                if (treesNone) biome = SNOWY_SLOPES;
+                else if (treesSparse || treesForest) biome = SNOWY_TAIGA_SPARSE;
+                else biome = SNOWY_TAIGA;
+            } else if (treesNone) {
+                if (barren) biome = WINDSWEPT_HILLS;
+                else if (treeMoisture < 0.35f || precip < 350f) biome = GROVE;
+                else biome = PLAINS;
+            } else if (treesSparse || treesForest) {
+                biome = TAIGA_SPARSE;
+            } else {
+                biome = TAIGA;
+            }
+        } else {
+            // Lowland/midland
+            if (hasSnow && treesNone) {
+                biome = SNOWY_PLAINS;
+            } else if (hasSnow) {
+                biome = (treesSparse || treesForest) ? SNOWY_TAIGA_SPARSE : SNOWY_TAIGA;
+            } else if (treesNone) {
+                if (warm || hot) biome = DESERT;
+                else if (barren && !lowland && (cold || cool || temperate)) biome = GROVE;
+                else if (treeMoisture < 0.35f || precip < 350f) biome = GROVE;
+                else biome = PLAINS;
+            } else if (treesSparse || treesForest) {
+                if (hot) biome = JUNGLE;
+                else if (warm && treesSparse && !slopeMedium) biome = SAVANNA;
+                else if (warm && treesForest) biome = FOREST_SPARSE;
+                else if (temperate) biome = FOREST_SPARSE;
+                else biome = TAIGA_SPARSE;
+            } else if (treesDense) {
+                if (hot) biome = JUNGLE;
+                else if (warm && lowland) biome = SWAMP;
+                else if (cool || cold) biome = TAIGA;
+                else biome = FOREST;
+            } else { // rainforest
+                if (hot || (warm && temp >= 18f && tStd < 5f)) biome = JUNGLE;
+                else if (lowland) biome = SWAMP;
+                else if (cool || cold) biome = TAIGA;
+                else biome = FOREST;
+            }
+        }
+
+        // Bare slope override for lowland/non-mountain cliffs
+        if (slopeBare && !isOcean && !mountains) {
+            biome = hasSnow ? FROZEN_PEAKS : STONY_PEAKS;
+        }
+
+        return biome;
     }
 
     private static float[] computeSlopeRatio(float[] elevPadded, int H, int W, float pixelSizeM) {

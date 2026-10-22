@@ -1,6 +1,7 @@
 package com.github.xandergos.terraindiffusionmc.world;
 
 import com.github.xandergos.terraindiffusionmc.config.TerrainDiffusionConfig;
+import com.github.xandergos.terraindiffusionmc.pipeline.CoarseTerrainSearch;
 import com.github.xandergos.terraindiffusionmc.pipeline.LocalTerrainProvider;
 import com.github.xandergos.terraindiffusionmc.pipeline.LocalTerrainProvider.HeightmapData;
 import com.mojang.datafixers.util.Pair;
@@ -21,6 +22,8 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.Climate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.function.Predicate;
@@ -29,6 +32,7 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 
 public class TerrainDiffusionBiomeSource extends BiomeSource {
+    private static final Logger LOG = LoggerFactory.getLogger(TerrainDiffusionBiomeSource.class);
     private static final ResourceKey<Biome> FOREST_SPARSE = ResourceKey.create(Registries.BIOME, new ResourceLocation("terrain-diffusion-mc", "forest_sparse"));
     private static final ResourceKey<Biome> TAIGA_SPARSE = ResourceKey.create(Registries.BIOME, new ResourceLocation("terrain-diffusion-mc", "taiga_sparse"));
     private static final ResourceKey<Biome> SNOWY_TAIGA_SPARSE = ResourceKey.create(Registries.BIOME, new ResourceLocation("terrain-diffusion-mc", "snowy_taiga_sparse"));
@@ -118,10 +122,36 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
         return defaultEntry;
     }
 
+    /**
+     * Backs {@code /locate biome}. Sampling real biomes would mean running the full terrain model over
+     * thousands of chunks, so this searches the coarse map instead and returns the centre of the nearest
+     * coarse cell that likely contains the biome (one cell is 256 x scale blocks across).
+     *
+     * <p>Only used by the locate command; world generation uses {@link #findBiomeHorizontal}, which is
+     * left unchanged.
+     */
     @Override
     public Pair<BlockPos, Holder<Biome>> findClosestBiome3d(BlockPos origin, int radius, int horizontalBlockCheckInterval, int verticalBlockCheckInterval, Predicate<Holder<Biome>> predicate, Climate.Sampler noiseSampler, LevelReader world) {
-        return null;
+        requireBiomeIdMap();
+        try {
+            CoarseTerrainSearch.Hit hit = CoarseTerrainSearch.forCurrentWorld().findBiome(
+                    origin.getX(), origin.getZ(), radius,
+                    biomeId -> {
+                        Holder<Biome> biome = biomeIdMap.get(biomeId);
+                        return biome != null && predicate.test(biome);
+                    });
+            if (hit == null) {
+                return null;
+            }
+            int y = HeightConverter.estimateMinecraftHeight(hit.elevationM(), WorldScaleManager.getCurrentScale());
+            return Pair.of(new BlockPos(hit.blockX(), Math.max(y, SEA_LEVEL_Y), hit.blockZ()), biomeIdMap.get(hit.biomeId()));
+        } catch (Exception e) {
+            LOG.warn("Coarse biome search failed: {}", e.toString());
+            return null;
+        }
     }
+
+    private static final int SEA_LEVEL_Y = 63;
 
     @Override
     public Pair<BlockPos, Holder<Biome>> findBiomeHorizontal(int x, int y, int z, int radius, int blockCheckInterval, Predicate<Holder<Biome>> predicate, RandomSource random, boolean bl, Climate.Sampler noiseSampler) {

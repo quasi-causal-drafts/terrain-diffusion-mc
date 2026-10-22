@@ -108,6 +108,7 @@ public final class TerrainDiffusionLifecycle {
      */
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("td-explore").executes(TerrainDiffusionLifecycle::executeExplore));
+        TerrainDiffusionLocateCommand.register(dispatcher);
     }
 
     private static int executeExplore(CommandContext<CommandSourceStack> ctx) {

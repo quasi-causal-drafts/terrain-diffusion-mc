@@ -33,4 +33,12 @@ public class HeightConverter {
     public static int getMaxGeneratedYForScale(int configuredScale) {
         return convertToMinecraftHeight(MAX_PIPELINE_METERS, configuredScale);
     }
+
+    /**
+     * Estimated block Y for an elevation in metres from an approximate source such as the coarse map.
+     */
+    public static int estimateMinecraftHeight(float meters, int configuredScale) {
+        short clamped = (short) Math.max(Short.MIN_VALUE, Math.min(MAX_PIPELINE_METERS, Math.round(meters)));
+        return convertToMinecraftHeight(clamped, configuredScale);
+    }
 }
