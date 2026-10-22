@@ -40,6 +40,29 @@ public final class TerrainDiffusionConfig {
         return device;
     }
 
+    /**
+     * DXGI adapter index for DirectML, or -1 for "auto" (the default), which asks DirectML for the
+     * high-performance GPU so systems with integrated graphics use the discrete card.
+     */
+    public static int gpuDeviceId() {
+        String value = readString("inference.gpu_device_id", "auto");
+        if (value.isEmpty() || "auto".equals(value)) {
+            return -1;
+        }
+        try {
+            int deviceId = Integer.parseInt(value);
+            return deviceId >= 0 ? deviceId : -1;
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid inference.gpu_device_id: " + value + ", using auto");
+            return -1;
+        }
+    }
+
+    /** Build variant baked into the jar: "windows", "cuda", "cpu", or "unknown". */
+    public static String buildVariant() {
+        return BUILD_VARIANT;
+    }
+
     /** Whether to offload inactive models from VRAM between pipeline stages. */
     public static boolean offloadModels() {
         return readBoolean("inference.offload_models", DEFAULT_OFFLOAD_MODELS);

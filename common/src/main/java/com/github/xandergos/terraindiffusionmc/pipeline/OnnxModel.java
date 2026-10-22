@@ -7,6 +7,8 @@ import com.github.xandergos.terraindiffusionmc.config.TerrainDiffusionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +39,8 @@ public final class OnnxModel implements AutoCloseable {
     private static final AtomicBoolean cudaWarnLoggedOnce = new AtomicBoolean(false);
     private static final AtomicBoolean dmlWarnLoggedOnce = new AtomicBoolean(false);
     private static final AtomicBoolean noGpuWarnLoggedOnce = new AtomicBoolean(false);
+    private static final AtomicBoolean dmlAdapterLoggedOnce = new AtomicBoolean(false);
+    private static volatile Method genericAppendExecutionProvider = null;
 
     // GPU slot: when offload_models=true, only one session is alive at a time.
     private static final Object GPU_SLOT_LOCK = new Object();
@@ -298,6 +302,8 @@ public final class OnnxModel implements AutoCloseable {
     private static void addGpuProvider(OrtSession.SessionOptions opts) throws OrtException {
         boolean gpuRequired = "gpu".equals(TerrainDiffusionConfig.inferenceDevice());
         boolean added = false;
+        Throwable cudaFailure = null;
+        Throwable dmlFailure = null;
 
         try {
             OrtCUDAProviderOptions cudaOpts = new OrtCUDAProviderOptions(0);
@@ -311,6 +317,7 @@ public final class OnnxModel implements AutoCloseable {
             added = true;
             setResolvedProviderOnce("CUDA");
         } catch (Throwable t) {
+            cudaFailure = t;
             if (cudaWarnLoggedOnce.compareAndSet(false, true)) {
                 LOG.warn("CUDA not available: {} - {}. This is expected if you are not using a CUDA build.",
                         t.getClass().getSimpleName(), t.getMessage());
@@ -319,10 +326,11 @@ public final class OnnxModel implements AutoCloseable {
 
         if (!added) {
             try {
-                opts.addDirectML(0);
+                addDirectML(opts);
                 added = true;
                 setResolvedProviderOnce("DirectML");
             } catch (Throwable t) {
+                dmlFailure = t;
                 if (dmlWarnLoggedOnce.compareAndSet(false, true)) {
                     LOG.warn("DirectML not available: {} - {}. This is expected if you are not using a DirectML build.",
                             t.getClass().getSimpleName(), t.getMessage());
@@ -345,15 +353,90 @@ public final class OnnxModel implements AutoCloseable {
             }
         }
         if (gpuRequired && !added) {
-            throw new OrtException(
+            // Surface the error from the provider this build is meant to use, instead of hiding it in a log warning.
+            Throwable relevantFailure = "cuda".equals(TerrainDiffusionConfig.buildVariant()) ? cudaFailure : dmlFailure;
+            StringBuilder message = new StringBuilder(
                     "inference.device=gpu but no GPU provider (CUDA, DirectML, CoreML) is available. " +
-                    "Use the appropriate build for your platform or set inference.device=cpu.");
+                    "Use the appropriate build for your platform or set inference.device=auto to fall back to CPU.");
+            if (relevantFailure != null) {
+                message.append(" Underlying error: ").append(relevantFailure.getMessage());
+            }
+            if (dmlFailure != null && String.valueOf(dmlFailure.getMessage()).contains("887A0004")) {
+                message.append(" DirectML rejected the GPU's feature level (0x887A0004). DirectML in use: ")
+                        .append(DirectMLRuntime.describe())
+                        .append(". Updating GPU drivers and Windows may help.");
+            }
+            OrtException exception = new OrtException(message.toString());
+            if (relevantFailure != null) {
+                exception.initCause(relevantFailure);
+            }
+            throw exception;
         }
         if (!added) {
             setResolvedProviderOnce("CPU");
             if (noGpuWarnLoggedOnce.compareAndSet(false, true)) {
                 LOG.warn("No GPU provider loaded. Check drivers and that the mod jar is the GPU build.");
             }
+        }
+    }
+
+    /**
+     * Adds the DirectML provider, choosing which GPU to run on.
+     *
+     * <p>{@code addDirectML(int)} indexes DXGI adapters, where index 0 is whichever adapter drives the main
+     * display. On machines with integrated graphics that is often not the discrete GPU. With
+     * {@code inference.gpu_device_id=auto} (the default) we instead ask DirectML for the high-performance GPU,
+     * which ONNX Runtime selects through DXCore. That option is only reachable through ONNX Runtime's generic
+     * provider API, which the Java bindings keep private, hence the reflection; if it is unavailable we fall
+     * back to adapter 0.
+     */
+    private static void addDirectML(OrtSession.SessionOptions opts) throws OrtException {
+        DirectMLRuntime.ensureLoaded();
+
+        int deviceId = TerrainDiffusionConfig.gpuDeviceId();
+        if (deviceId >= 0) {
+            opts.addDirectML(deviceId);
+            if (dmlAdapterLoggedOnce.compareAndSet(false, true)) {
+                LOG.info("DirectML using adapter index {} (inference.gpu_device_id)", deviceId);
+            }
+            return;
+        }
+
+        try {
+            Map<String, String> providerOptions = new LinkedHashMap<>();
+            providerOptions.put("performance_preference", "high_performance");
+            providerOptions.put("device_filter", "gpu");
+            invokeGenericAppendExecutionProvider(opts, "DML", providerOptions);
+            if (dmlAdapterLoggedOnce.compareAndSet(false, true)) {
+                LOG.info("DirectML using the high-performance GPU (set inference.gpu_device_id to override)");
+            }
+            return;
+        } catch (Throwable t) {
+            if (dmlAdapterLoggedOnce.compareAndSet(false, true)) {
+                LOG.warn("Could not select the high-performance GPU for DirectML ({} - {}); using adapter 0. " +
+                                "Set inference.gpu_device_id to pick a GPU manually.",
+                        t.getClass().getSimpleName(), t.getMessage());
+            }
+        }
+        opts.addDirectML(0);
+    }
+
+    private static void invokeGenericAppendExecutionProvider(
+            OrtSession.SessionOptions opts, String providerName, Map<String, String> providerOptions) throws Exception {
+        Method method = genericAppendExecutionProvider;
+        if (method == null) {
+            method = OrtSession.SessionOptions.class.getDeclaredMethod("addExecutionProvider", String.class, Map.class);
+            method.setAccessible(true);
+            genericAppendExecutionProvider = method;
+        }
+        try {
+            method.invoke(opts, providerName, providerOptions);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception) {
+                throw (Exception) cause;
+            }
+            throw e;
         }
     }
 

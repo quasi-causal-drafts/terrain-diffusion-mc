@@ -85,6 +85,87 @@ tasks.register('generateModelAssetManifest') {
     }
 }
 
+// The DirectML build of onnxruntime.dll delay-loads DirectML.dll but libs/onnxruntime-dml.jar does not ship it,
+// so Windows falls back to its inbox System32 copy, which on Windows 10 is too old (DMLCreateDevice1 fails with
+// 0x887A0004). Bundle the official redistributable from NuGet in the Windows variant; DirectMLRuntime loads it.
+// Keep the version in step with the DirectML version ONNX Runtime was built against (1.26.0 -> 1.15.4).
+def directMLVersion = (findProperty('directml_version') ?: '1.15.4').toString()
+def directMLNupkgSha512 = (findProperty('directml_nupkg_sha512') ?: '').toString().trim()
+def directMLCacheDir = rootProject.file(".gradle/directml/${directMLVersion}")
+def directMLGeneratedDir = layout.buildDirectory.dir('generated/directml')
+
+if (terrainDiffusionBuildVariant() == 'windows') {
+    def prepareDirectMLRuntime = tasks.register('prepareDirectMLRuntime') {
+        inputs.property('directMLVersion', directMLVersion)
+        inputs.property('directMLNupkgSha512', directMLNupkgSha512)
+        outputs.dir(directMLGeneratedDir)
+
+        doLast {
+            String packageFileName = "microsoft.ai.directml.${directMLVersion}.nupkg"
+            File nupkg = new File(directMLCacheDir, packageFileName)
+            if (!nupkg.isFile()) {
+                directMLCacheDir.mkdirs()
+                String url = "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/${directMLVersion}/${packageFileName}"
+                logger.lifecycle("Downloading DirectML ${directMLVersion} redistributable from ${url}")
+                File partial = new File(directMLCacheDir, packageFileName + '.part')
+                partial.withOutputStream { output -> new URL(url).withInputStream { input -> output << input } }
+                if (!partial.renameTo(nupkg)) {
+                    throw new GradleException("Could not move ${partial} to ${nupkg}")
+                }
+            }
+
+            // NuGet publishes package hashes as base64 SHA-512, so use the same form to make pinning easy.
+            String actualSha512 = java.util.Base64.getEncoder().encodeToString(
+                    java.security.MessageDigest.getInstance('SHA-512').digest(nupkg.bytes))
+            if (directMLNupkgSha512) {
+                if (actualSha512 != directMLNupkgSha512) {
+                    nupkg.delete()
+                    throw new GradleException("DirectML package hash mismatch: expected ${directMLNupkgSha512}, got ${actualSha512}")
+                }
+            } else {
+                logger.lifecycle("DirectML ${directMLVersion} package SHA-512 (base64): ${actualSha512}. " +
+                        "Set directml_nupkg_sha512 in gradle.properties to pin it.")
+            }
+
+            File outputDir = directMLGeneratedDir.get().asFile
+            outputDir.deleteDir()
+            File nativeDir = new File(outputDir, 'terrain-diffusion-mc/native/win-x64')
+            File licenseDir = new File(outputDir, 'META-INF/directml')
+            nativeDir.mkdirs()
+            licenseDir.mkdirs()
+
+            def zip = new java.util.zip.ZipFile(nupkg)
+            try {
+                def zipEntries = Collections.list(zip.entries())
+                def dllEntry = zipEntries.find { it.name.equalsIgnoreCase('bin/x64-win/DirectML.dll') }
+                if (dllEntry == null) {
+                    throw new GradleException("bin/x64-win/DirectML.dll not found in ${nupkg}")
+                }
+                zip.getInputStream(dllEntry).withStream { input ->
+                    new File(nativeDir, 'DirectML.dll').withOutputStream { it << input }
+                }
+                new File(nativeDir, 'directml-version.txt').text = directMLVersion
+
+                // The redistributable's license terms travel with the DLL.
+                zipEntries.findAll {
+                    !it.directory && !it.name.contains('/') && it.name.toLowerCase(Locale.ROOT) ==~ /(license|thirdpartynotices).*\.txt/
+                }.each { entry ->
+                    zip.getInputStream(entry).withStream { input ->
+                        new File(licenseDir, entry.name).withOutputStream { it << input }
+                    }
+                }
+            } finally {
+                zip.close()
+            }
+        }
+    }
+
+    processResources {
+        dependsOn prepareDirectMLRuntime
+        from(directMLGeneratedDir)
+    }
+}
+
 processResources {
     dependsOn tasks.named('generateModelAssetManifest')
     inputs.property('terrain_diffusion_build_variant', terrainDiffusionBuildVariant())
