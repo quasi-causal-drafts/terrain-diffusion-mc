@@ -1,10 +1,10 @@
 package com.github.xandergos.terraindiffusionmc.mixin;
 
+import com.github.xandergos.terraindiffusionmc.TerrainDiffusionLifecycle;
 import com.github.xandergos.terraindiffusionmc.pipeline.SpawnSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ServerLevelData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,7 +18,8 @@ public class MinecraftServerMixin {
     private static void overrideWorldSpawn(ServerLevel world, ServerLevelData worldProperties,
                                            boolean bonusChest, boolean debugWorld,
                                            CallbackInfo ci) {
-        if (!world.dimension().equals(Level.OVERWORLD)) {
+        // Only Terrain Diffusion overworlds: in other world types the coarse map says nothing about the terrain.
+        if (!TerrainDiffusionLifecycle.isTerrainDiffusionOverworld(world)) {
             return;
         }
 

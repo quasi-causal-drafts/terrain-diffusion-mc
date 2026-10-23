@@ -12,7 +12,8 @@ public final class TerrainDiffusionConfig {
     private static final String FILE_NAME = "terrain-diffusion-mc.properties";
     private static final String RESOURCE_PATH = "/" + FILE_NAME;
     private static final Properties PROPERTIES = new Properties();
-    private static final String BUILD_VARIANT = readBuildVariant();
+    private static final String BUILD_VARIANT = readBuildProperty("build.variant");
+    private static final String BUILD_COMMIT = readBuildProperty("build.commit");
     private static final boolean DEFAULT_OFFLOAD_MODELS = true;
     private static final boolean DEFAULT_VALIDATE_MODEL = true;
     private static final int DEFAULT_EXPLORER_PORT = 19801;
@@ -61,6 +62,11 @@ public final class TerrainDiffusionConfig {
     /** Build variant baked into the jar: "windows", "cuda", "cpu", or "unknown". */
     public static String buildVariant() {
         return BUILD_VARIANT;
+    }
+
+    /** Short commit hash the jar was built from ("local" for local builds, "unknown" if missing). */
+    public static String buildCommit() {
+        return BUILD_COMMIT;
     }
 
     /** Whether to offload inactive models from VRAM between pipeline stages. */
@@ -179,12 +185,12 @@ public final class TerrainDiffusionConfig {
         return (value & (value - 1)) == 0;
     }
 
-    private static String readBuildVariant() {
+    private static String readBuildProperty(String key) {
         try (InputStream in = TerrainDiffusionConfig.class.getResourceAsStream("/build-variant.properties")) {
             if (in == null) return "unknown";
             Properties props = new Properties();
             props.load(in);
-            return props.getProperty("build.variant", "unknown");
+            return props.getProperty(key, "unknown");
         } catch (IOException e) {
             return "unknown";
         }

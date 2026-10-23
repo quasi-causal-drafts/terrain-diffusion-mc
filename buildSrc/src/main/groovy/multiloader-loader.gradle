@@ -166,14 +166,18 @@ if (terrainDiffusionBuildVariant() == 'windows') {
     }
 }
 
+// Commit the jar was built from, logged at startup so a log shows exactly which build is running.
+def terrainDiffusionBuildCommit = (System.getenv('GITHUB_SHA') ?: 'local').take(7)
+
 processResources {
     dependsOn tasks.named('generateModelAssetManifest')
     inputs.property('terrain_diffusion_build_variant', terrainDiffusionBuildVariant())
+    inputs.property('terrain_diffusion_build_commit', terrainDiffusionBuildCommit)
     from(generatedManifestFile) {
         into ''
     }
     filesMatching('build-variant.properties') {
-        expand 'build_variant': terrainDiffusionBuildVariant()
+        expand 'build_variant': terrainDiffusionBuildVariant(), 'build_commit': terrainDiffusionBuildCommit
     }
 }
 
