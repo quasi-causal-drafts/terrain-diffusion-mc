@@ -6,7 +6,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Properties;
+import java.util.Set;
 
 public final class TerrainDiffusionConfig {
     private static final String FILE_NAME = "terrain-diffusion-mc.properties";
@@ -62,6 +65,29 @@ public final class TerrainDiffusionConfig {
     /** Build variant baked into the jar: "windows", "cuda", "cpu", or "unknown". */
     public static String buildVariant() {
         return BUILD_VARIANT;
+    }
+
+    /** Value of {@code terralith.disabled_biomes} that turns off every Terralith biome. */
+    public static final String ALL_TERRALITH_BIOMES = "all";
+
+    /**
+     * Terralith biome names (without the {@code terralith:} prefix, lowercase) listed in
+     * {@code terralith.disabled_biomes}, or a set containing {@link #ALL_TERRALITH_BIOMES}. Names may be separated
+     * by commas, spaces or semicolons and may include the namespace.
+     */
+    public static Set<String> terralithDisabledBiomes() {
+        String raw = PROPERTIES.getProperty("terralith.disabled_biomes", "");
+        Set<String> names = new LinkedHashSet<>();
+        for (String token : raw.toLowerCase(Locale.ROOT).split("[,;\\s]+")) {
+            String name = token.trim();
+            if (name.startsWith("terralith:")) {
+                name = name.substring("terralith:".length());
+            }
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        return names;
     }
 
     /** Short commit hash the jar was built from ("local" for local builds, "unknown" if missing). */

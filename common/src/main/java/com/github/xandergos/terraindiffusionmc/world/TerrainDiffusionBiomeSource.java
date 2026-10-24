@@ -27,9 +27,13 @@ import net.minecraft.world.level.biome.Climate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -106,32 +110,63 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
     }
 
     /**
-     * Terralith biomes used by the classifier, or nulls when Terralith is not installed. The getter can throw
-     * for keys that do not exist (depending on which registry stage it came from), so absence is detected by
+     * Terralith biomes used by the classifier, or nulls when Terralith is not installed or the biome is listed in
+     * {@code terralith.disabled_biomes}; null entries fall back to the vanilla biome. The getter can throw for
+     * keys that do not exist (depending on which registry stage it came from), so absence is detected by
      * catching that rather than by asking for the key first.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Holder<Biome>[] lookUpTerralithBiomes() {
         TerralithBiome[] wanted = TerralithBiome.values();
         Holder<Biome>[] found = new Holder[wanted.length];
+        Set<String> disabled = TerrainDiffusionConfig.terralithDisabledBiomes();
+        boolean allDisabled = disabled.contains(TerrainDiffusionConfig.ALL_TERRALITH_BIOMES);
+        warnAboutUnknownNames(disabled, wanted);
+
         int count = 0;
+        int skipped = 0;
         for (TerralithBiome biome : wanted) {
             ResourceKey<Biome> key = ResourceKey.create(Registries.BIOME, new ResourceLocation("terralith", biome.path()));
+            Holder<Biome> holder;
             try {
-                found[biome.ordinal()] = this.biomeLookup.get(key).orElse(null);
+                holder = this.biomeLookup.get(key).orElse(null);
             } catch (RuntimeException absent) {
-                found[biome.ordinal()] = null;
+                holder = null;
             }
-            if (found[biome.ordinal()] != null) {
+            if (holder != null && (allDisabled || disabled.contains(biome.path()))) {
+                holder = null;
+                skipped++;
+            }
+            found[biome.ordinal()] = holder;
+            if (holder != null) {
                 count++;
             }
         }
-        if (count > 0) {
-            LOG.info("Terralith detected: using {} of {} mapped Terralith biomes", count, wanted.length);
+        if (count > 0 || skipped > 0) {
+            LOG.info("Terralith detected: using {} of {} mapped Terralith biomes ({} disabled in config)",
+                    count, wanted.length, skipped);
         } else {
             LOG.info("Terralith not installed: using vanilla biomes");
         }
         return found;
+    }
+
+    /** Logs names in {@code terralith.disabled_biomes} that don't match any biome the classifier uses (typos). */
+    private static void warnAboutUnknownNames(Set<String> disabled, TerralithBiome[] wanted) {
+        Set<String> known = new TreeSet<>();
+        for (TerralithBiome biome : wanted) {
+            known.add(biome.path());
+        }
+        List<String> unknown = new ArrayList<>();
+        for (String name : disabled) {
+            if (!known.contains(name) && !name.equals(TerrainDiffusionConfig.ALL_TERRALITH_BIOMES)) {
+                unknown.add(name);
+            }
+        }
+        if (!unknown.isEmpty()) {
+            LOG.warn("terralith.disabled_biomes: {} not used by Terrain Diffusion (ignored). Biomes that can be disabled: {}",
+                    unknown, String.join(", ", known));
+        }
     }
 
     /** Resolves a classifier id: a Terralith biome when installed, otherwise the vanilla biome it replaces. */

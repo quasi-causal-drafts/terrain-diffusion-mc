@@ -60,6 +60,68 @@ If [Terralith](https://modrinth.com/mod/terralith) is installed, Terrain Diffusi
 - Terralith 2.5.x for 1.20.1 overrides the overworld dimension, which would otherwise replace a Terrain Diffusion world; Terrain Diffusion worlds keep their own overworld. Other world types still get Terralith's.
 - Worlds created with Terralith installed before this support existed already have Terralith's overworld saved, so create a new world.
 
+#### Disabling Terralith biomes
+
+List Terralith biomes you don't want in `config/terrain-diffusion-mc.properties`; places that would have used them get the vanilla biome Terrain Diffusion would otherwise place:
+
+```
+terralith.disabled_biomes=moonlight_grove, moonlight_valley, amethyst_rainforest
+```
+
+Names can include the `terralith:` prefix; `all` turns off every Terralith biome. The setting is read at startup and only affects newly generated chunks. If your config file was created by an older version, add the line yourself. Misspelled names are reported in the log.
+
+| Terralith biome | Replaces |
+|---|---|
+| `alpine_grove` | snowy taiga, snowy sparse taiga (mountains) |
+| `alpine_highlands` | plains (mountains), grove |
+| `amethyst_rainforest` | jungle (rare) |
+| `ancient_sands` | desert |
+| `ashen_savanna` | savanna |
+| `basalt_cliffs` | stony peaks (hot coasts) |
+| `birch_taiga` | forest, taiga |
+| `blooming_plateau` | plains (mountains) |
+| `blooming_valley` | plains, forest |
+| `cloud_forest` | taiga (wet mountains) |
+| `cold_shrubland` | plains, grove |
+| `desert_oasis` | desert (rare) |
+| `forested_highlands` | forest, taiga |
+| `frozen_cliffs` | frozen peaks (coasts) |
+| `granite_cliffs` | stony peaks (temperate coasts) |
+| `haze_mountain` | sparse taiga (mountains) |
+| `highlands` | plains, sparse forest |
+| `hot_shrubland` | sparse forest |
+| `ice_marsh` | snowy plains |
+| `jungle_mountains` | jungle |
+| `lavender_forest` | forest, sparse forest (rare) |
+| `lavender_valley` | plains (rare) |
+| `lush_desert` | desert |
+| `lush_valley` | taiga |
+| `moonlight_grove` | forest, sparse forest (rare) |
+| `moonlight_valley` | plains (rare) |
+| `orchid_swamp` | swamp |
+| `rocky_jungle` | jungle |
+| `rocky_mountains` | stony peaks, windswept hills |
+| `rocky_shrubland` | plains, grove |
+| `sakura_grove` | forest, sparse forest (rare) |
+| `sakura_valley` | plains (rare) |
+| `sandstone_valley` | desert |
+| `savanna_badlands` | savanna |
+| `savanna_slopes` | savanna |
+| `shield` | taiga, sparse taiga |
+| `shield_clearing` | sparse taiga |
+| `shrubland` | savanna |
+| `siberian_taiga` | snowy taiga |
+| `snowy_cherry_grove` | snowy sparse taiga (rare) |
+| `snowy_maple_forest` | snowy taiga |
+| `snowy_shield` | snowy sparse taiga |
+| `steppe` | grove |
+| `temperate_highlands` | forest |
+| `tropical_jungle` | jungle |
+| `valley_clearing` | plains |
+| `white_cliffs` | stony peaks (cold coasts) |
+| `wintry_forest` | snowy taiga |
+| `yosemite_lowlands` | sparse forest |
+
 ## Configuration
 
 Edit `config/terrain-diffusion-mc.properties` (created automatically on first launch):
