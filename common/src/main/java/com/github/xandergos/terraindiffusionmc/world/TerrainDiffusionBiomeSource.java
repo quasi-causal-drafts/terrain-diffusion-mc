@@ -1,6 +1,7 @@
 package com.github.xandergos.terraindiffusionmc.world;
 
 import com.github.xandergos.terraindiffusionmc.config.TerrainDiffusionConfig;
+import com.github.xandergos.terraindiffusionmc.pipeline.BaseBiomeReplacements;
 import com.github.xandergos.terraindiffusionmc.pipeline.CoarseTerrainSearch;
 import com.github.xandergos.terraindiffusionmc.pipeline.LocalTerrainProvider;
 import com.github.xandergos.terraindiffusionmc.pipeline.LocalTerrainProvider.HeightmapData;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,7 +54,10 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
 
 
     private HolderGetter<Biome> biomeLookup;
-    /** Vanilla classifier ids. Assigned last in {@link #requireBiomeIdMap}, after {@link #terralithBiomes}. */
+    /**
+     * Base classifier ids (vanilla and Terrain Diffusion's own biomes) to the biome actually placed, after
+     * {@code vanilla.disabled_biomes}. Assigned last in {@link #initBiomeIdMap}, after {@link #terralithBiomes}.
+     */
     private volatile Map<Short, Holder<Biome>> biomeIdMap = null;
     /** Terralith biomes by {@link TerralithBiome} ordinal; null entries when Terralith is not installed. */
     private Holder<Biome>[] terralithBiomes;
@@ -75,7 +80,7 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
     private synchronized void initBiomeIdMap() {
         if (biomeIdMap == null) {
             terralithBiomes = lookUpTerralithBiomes();
-            biomeIdMap = Map.ofEntries(
+            Map<Short, Holder<Biome>> base = Map.ofEntries(
                     entry((short) 1, this.biomeLookup.getOrThrow(Biomes.PLAINS)),
                     entry((short) 3, this.biomeLookup.getOrThrow(Biomes.SNOWY_PLAINS)),
                     entry((short) 5, this.biomeLookup.getOrThrow(Biomes.DESERT)),
@@ -100,7 +105,58 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
                     entry((short) 115, this.biomeLookup.getOrThrow(TAIGA_SPARSE)),
                     entry((short) 116, this.biomeLookup.getOrThrow(SNOWY_TAIGA_SPARSE))
             );
+            biomeIdMap = applyDisabledBaseBiomes(base);
         }
+    }
+
+    /**
+     * Swaps biomes listed in {@code vanilla.disabled_biomes} for their replacements. Every lookup goes through
+     * the returned map, so disabled biomes are never placed and never reported as possible.
+     */
+    private Map<Short, Holder<Biome>> applyDisabledBaseBiomes(Map<Short, Holder<Biome>> base) {
+        BaseBiomeReplacements.Result result = BaseBiomeReplacements.compute(TerrainDiffusionConfig.vanillaDisabledBiomes());
+        result.warnings().forEach(LOG::warn);
+        if (result.candidates().isEmpty()) {
+            return base;
+        }
+        Map<Short, Holder<Biome>> resolved = new HashMap<>(base);
+        List<String> summary = new ArrayList<>();
+        for (Map.Entry<Short, List<String>> entry : result.candidates().entrySet()) {
+            short id = entry.getKey();
+            for (String candidate : entry.getValue()) {
+                Holder<Biome> holder = lookUpReplacement(candidate, base);
+                if (holder != null) {
+                    resolved.put(id, holder);
+                    summary.add(shortName(BaseBiomeReplacements.BIOMES.get(id)) + " -> " + shortName(candidate));
+                    break;
+                }
+                LOG.warn("vanilla.disabled_biomes: replacement {} for {} does not exist; trying the next option",
+                        candidate, BaseBiomeReplacements.BIOMES.get(id));
+            }
+        }
+        LOG.info("Vanilla biomes disabled in config: {}", String.join(", ", summary));
+        return resolved;
+    }
+
+    /** A base biome from {@code base}, or any other registered biome by id; null if it doesn't exist. */
+    private Holder<Biome> lookUpReplacement(String biomeId, Map<Short, Holder<Biome>> base) {
+        Short baseId = BaseBiomeReplacements.baseIdOf(biomeId);
+        if (baseId != null) {
+            return base.get(baseId);
+        }
+        ResourceLocation location = ResourceLocation.tryParse(biomeId);
+        if (location == null) {
+            return null;
+        }
+        try {
+            return this.biomeLookup.get(ResourceKey.create(Registries.BIOME, location)).orElse(null);
+        } catch (RuntimeException absent) {
+            return null;
+        }
+    }
+
+    private static String shortName(String biomeId) {
+        return biomeId.startsWith("minecraft:") ? biomeId.substring("minecraft:".length()) : biomeId;
     }
 
     @Override
@@ -169,7 +225,10 @@ public class TerrainDiffusionBiomeSource extends BiomeSource {
         }
     }
 
-    /** Resolves a classifier id: a Terralith biome when installed, otherwise the vanilla biome it replaces. */
+    /**
+     * Resolves a classifier id: a Terralith biome when installed and enabled, otherwise the vanilla biome it
+     * replaces (or that biome's replacement from {@code vanilla.disabled_biomes}).
+     */
     private Holder<Biome> resolve(short id) {
         if (TerralithBiomes.isVariant(id)) {
             Holder<Biome> terralith = terralithBiomes[TerralithBiomes.terralithOf(id).ordinal()];

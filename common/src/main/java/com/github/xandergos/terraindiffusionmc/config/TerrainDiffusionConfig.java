@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
@@ -88,6 +90,30 @@ public final class TerrainDiffusionConfig {
             }
         }
         return names;
+    }
+
+    /**
+     * Entries of {@code vanilla.disabled_biomes}: biome name to the replacement written after "=", or an empty
+     * string when none was given. Entries are separated by commas, semicolons or spaces; spaces around "=" are
+     * allowed. Names are lowercased; namespaces are kept as written.
+     */
+    public static Map<String, String> vanillaDisabledBiomes() {
+        String raw = PROPERTIES.getProperty("vanilla.disabled_biomes", "");
+        Map<String, String> entries = new LinkedHashMap<>();
+        String compact = raw.toLowerCase(Locale.ROOT).replaceAll("\\s*=\\s*", "=");
+        for (String token : compact.split("[,;\\s]+")) {
+            String entry = token.trim();
+            if (entry.isEmpty()) {
+                continue;
+            }
+            int eq = entry.indexOf('=');
+            String name = eq < 0 ? entry : entry.substring(0, eq).trim();
+            String replacement = eq < 0 ? "" : entry.substring(eq + 1).trim();
+            if (!name.isEmpty()) {
+                entries.put(name, replacement);
+            }
+        }
+        return entries;
     }
 
     /** Short commit hash the jar was built from ("local" for local builds, "unknown" if missing). */

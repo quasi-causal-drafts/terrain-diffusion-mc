@@ -122,6 +122,46 @@ Names can include the `terralith:` prefix; `all` turns off every Terralith biome
 | `wintry_forest` | snowy taiga |
 | `yosemite_lowlands` | sparse forest |
 
+### Disabling vanilla biomes
+
+`vanilla.disabled_biomes` works the same way for the vanilla biomes Terrain Diffusion places (and its own `forest_sparse`, `taiga_sparse` and `snowy_taiga_sparse`). Because there's no biome underneath to fall back to, each one is replaced: by the biome you name after `=`, or else by the first one in the table below that isn't disabled itself.
+
+```
+vanilla.disabled_biomes=swamp, jungle, desert=savanna
+```
+
+- A replacement can be any biome ID, including modded ones (`swamp=minecraft:mangrove_swamp`). Ground blocks follow Terrain Diffusion's surface rules, so biomes it doesn't know get grass and dirt.
+- Terralith biomes that stand in for a disabled biome still appear unless you disable them too (for example `orchid_swamp` on swamp ground).
+- Read at startup; only affects newly generated chunks. Misspelled names are reported in the log.
+
+| Biome | Replaced by (first one not disabled) |
+|---|---|
+| `plains` | meadow, forest_sparse |
+| `meadow` | plains, forest_sparse |
+| `grove` | plains, meadow |
+| `snowy_plains` | snowy_slopes, snowy_taiga_sparse |
+| `snowy_slopes` | snowy_plains, frozen_peaks |
+| `frozen_peaks` | snowy_slopes, stony_peaks |
+| `stony_peaks` | windswept_hills, frozen_peaks |
+| `windswept_hills` | stony_peaks, grove |
+| `desert` | badlands, savanna |
+| `badlands` | desert, savanna |
+| `savanna` | forest_sparse, plains |
+| `jungle` | forest, forest_sparse |
+| `swamp` | forest, plains |
+| `forest` | forest_sparse, plains |
+| `forest_sparse` | forest, plains |
+| `taiga` | taiga_sparse, forest |
+| `taiga_sparse` | taiga, plains |
+| `snowy_taiga` | snowy_taiga_sparse, taiga |
+| `snowy_taiga_sparse` | snowy_taiga, snowy_plains |
+| `warm_ocean` | ocean, cold_ocean |
+| `ocean` | cold_ocean, warm_ocean |
+| `cold_ocean` | ocean, frozen_ocean |
+| `frozen_ocean` | cold_ocean, ocean |
+
+If those are disabled too, it keeps following the chain (for example plains, meadow and forest_sparse all disabled gives forest).
+
 ## Configuration
 
 Edit `config/terrain-diffusion-mc.properties` (created automatically on first launch):
