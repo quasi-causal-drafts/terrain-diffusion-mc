@@ -111,6 +111,72 @@ public final class TerralithBiomes {
 
     private static final TerralithBiome[] BIOMES = TerralithBiome.values();
 
+    /** Classifier biomes each Terralith biome can stand in for (matches {@link #refine}). */
+    private static final java.util.Map<TerralithBiome, short[]> BASES = buildBases();
+
+    private static java.util.Map<TerralithBiome, short[]> buildBases() {
+        java.util.Map<TerralithBiome, short[]> bases = new java.util.EnumMap<>(TerralithBiome.class);
+        bases.put(TerralithBiome.ALPINE_GROVE, ids(BiomeClassifier.SNOWY_TAIGA, BiomeClassifier.SNOWY_TAIGA_SPARSE));
+        bases.put(TerralithBiome.ALPINE_HIGHLANDS, ids(BiomeClassifier.PLAINS, BiomeClassifier.GROVE));
+        bases.put(TerralithBiome.AMETHYST_RAINFOREST, ids(BiomeClassifier.JUNGLE));
+        bases.put(TerralithBiome.ANCIENT_SANDS, ids(BiomeClassifier.DESERT));
+        bases.put(TerralithBiome.ASHEN_SAVANNA, ids(BiomeClassifier.SAVANNA));
+        bases.put(TerralithBiome.BASALT_CLIFFS, ids(BiomeClassifier.STONY_PEAKS));
+        bases.put(TerralithBiome.BIRCH_TAIGA, ids(BiomeClassifier.FOREST, BiomeClassifier.TAIGA));
+        bases.put(TerralithBiome.BLOOMING_PLATEAU, ids(BiomeClassifier.PLAINS));
+        bases.put(TerralithBiome.BLOOMING_VALLEY, ids(BiomeClassifier.FOREST, BiomeClassifier.PLAINS));
+        bases.put(TerralithBiome.CLOUD_FOREST, ids(BiomeClassifier.TAIGA));
+        bases.put(TerralithBiome.COLD_SHRUBLAND, ids(BiomeClassifier.PLAINS, BiomeClassifier.GROVE));
+        bases.put(TerralithBiome.DESERT_OASIS, ids(BiomeClassifier.DESERT));
+        bases.put(TerralithBiome.FORESTED_HIGHLANDS, ids(BiomeClassifier.FOREST, BiomeClassifier.TAIGA));
+        bases.put(TerralithBiome.FROZEN_CLIFFS, ids(BiomeClassifier.FROZEN_PEAKS));
+        bases.put(TerralithBiome.GRANITE_CLIFFS, ids(BiomeClassifier.STONY_PEAKS));
+        bases.put(TerralithBiome.HAZE_MOUNTAIN, ids(BiomeClassifier.TAIGA_SPARSE));
+        bases.put(TerralithBiome.HIGHLANDS, ids(BiomeClassifier.PLAINS, BiomeClassifier.FOREST_SPARSE));
+        bases.put(TerralithBiome.HOT_SHRUBLAND, ids(BiomeClassifier.FOREST_SPARSE));
+        bases.put(TerralithBiome.ICE_MARSH, ids(BiomeClassifier.SNOWY_PLAINS));
+        bases.put(TerralithBiome.JUNGLE_MOUNTAINS, ids(BiomeClassifier.JUNGLE));
+        bases.put(TerralithBiome.LAVENDER_FOREST, ids(BiomeClassifier.FOREST, BiomeClassifier.FOREST_SPARSE));
+        bases.put(TerralithBiome.LAVENDER_VALLEY, ids(BiomeClassifier.PLAINS));
+        bases.put(TerralithBiome.LUSH_DESERT, ids(BiomeClassifier.DESERT));
+        bases.put(TerralithBiome.LUSH_VALLEY, ids(BiomeClassifier.TAIGA));
+        bases.put(TerralithBiome.MOONLIGHT_GROVE, ids(BiomeClassifier.FOREST, BiomeClassifier.FOREST_SPARSE));
+        bases.put(TerralithBiome.MOONLIGHT_VALLEY, ids(BiomeClassifier.PLAINS));
+        bases.put(TerralithBiome.ORCHID_SWAMP, ids(BiomeClassifier.SWAMP));
+        bases.put(TerralithBiome.ROCKY_JUNGLE, ids(BiomeClassifier.JUNGLE));
+        bases.put(TerralithBiome.ROCKY_MOUNTAINS, ids(BiomeClassifier.STONY_PEAKS, BiomeClassifier.WINDSWEPT_HILLS));
+        bases.put(TerralithBiome.ROCKY_SHRUBLAND, ids(BiomeClassifier.PLAINS, BiomeClassifier.GROVE));
+        bases.put(TerralithBiome.SAKURA_GROVE, ids(BiomeClassifier.FOREST, BiomeClassifier.FOREST_SPARSE));
+        bases.put(TerralithBiome.SAKURA_VALLEY, ids(BiomeClassifier.PLAINS));
+        bases.put(TerralithBiome.SANDSTONE_VALLEY, ids(BiomeClassifier.DESERT));
+        bases.put(TerralithBiome.SAVANNA_BADLANDS, ids(BiomeClassifier.SAVANNA));
+        bases.put(TerralithBiome.SAVANNA_SLOPES, ids(BiomeClassifier.SAVANNA));
+        bases.put(TerralithBiome.SHIELD, ids(BiomeClassifier.TAIGA, BiomeClassifier.TAIGA_SPARSE));
+        bases.put(TerralithBiome.SHIELD_CLEARING, ids(BiomeClassifier.TAIGA_SPARSE));
+        bases.put(TerralithBiome.SHRUBLAND, ids(BiomeClassifier.SAVANNA));
+        bases.put(TerralithBiome.SIBERIAN_TAIGA, ids(BiomeClassifier.SNOWY_TAIGA));
+        bases.put(TerralithBiome.SNOWY_CHERRY_GROVE, ids(BiomeClassifier.SNOWY_TAIGA_SPARSE));
+        bases.put(TerralithBiome.SNOWY_MAPLE_FOREST, ids(BiomeClassifier.SNOWY_TAIGA));
+        bases.put(TerralithBiome.SNOWY_SHIELD, ids(BiomeClassifier.SNOWY_TAIGA_SPARSE));
+        bases.put(TerralithBiome.STEPPE, ids(BiomeClassifier.GROVE));
+        bases.put(TerralithBiome.TEMPERATE_HIGHLANDS, ids(BiomeClassifier.FOREST));
+        bases.put(TerralithBiome.TROPICAL_JUNGLE, ids(BiomeClassifier.JUNGLE));
+        bases.put(TerralithBiome.VALLEY_CLEARING, ids(BiomeClassifier.PLAINS));
+        bases.put(TerralithBiome.WHITE_CLIFFS, ids(BiomeClassifier.STONY_PEAKS));
+        bases.put(TerralithBiome.WINTRY_FOREST, ids(BiomeClassifier.SNOWY_TAIGA));
+        bases.put(TerralithBiome.YOSEMITE_LOWLANDS, ids(BiomeClassifier.FOREST_SPARSE));
+        return java.util.Collections.unmodifiableMap(bases);
+    }
+
+    private static short[] ids(short... ids) {
+        return ids;
+    }
+
+    /** Classifier biomes the given Terralith biome can stand in for. */
+    public static short[] basesOf(TerralithBiome biome) {
+        return BASES.get(biome).clone();
+    }
+
     /** Variant ids start here; below it are plain classifier ids (all below 128). */
     static final int VARIANT_BASE = 1024;
     private static final int BASE_BITS = 7;

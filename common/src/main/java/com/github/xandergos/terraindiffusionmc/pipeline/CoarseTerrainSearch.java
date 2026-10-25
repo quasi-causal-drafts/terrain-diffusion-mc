@@ -27,7 +27,8 @@ public final class CoarseTerrainSearch {
 
     @FunctionalInterface
     public interface BiomeIdMatcher {
-        boolean test(short biomeId);
+        /** Whether the classifier biome at block ({@code blockX}, {@code blockZ}) is wanted. */
+        boolean test(short biomeId, int blockX, int blockZ);
     }
 
     /**
@@ -172,7 +173,7 @@ public final class CoarseTerrainSearch {
     private Hit matchBiome(Grid grid, int r, int c, BiomeIdMatcher matcher) {
         int px = r * grid.W + c;
         short dominant = dominantBiome(grid, r, c);
-        if (matcher.test(dominant)) {
+        if (matcher.test(dominant, grid.centerBlockX(c), grid.centerBlockZ(r))) {
             return grid.hit(r, c, grid.mean[px], dominant);
         }
 
@@ -186,7 +187,7 @@ public final class CoarseTerrainSearch {
         for (float slope : STEEP_SLOPES) {
             short steep = BiomeClassifier.classifyAt(highM, slope, highTemp, grid.tStd[px], grid.precip[px],
                     grid.pCV[px], grid.centerBlockZ(r), grid.centerBlockX(c));
-            if (matcher.test(steep)) {
+            if (matcher.test(steep, grid.centerBlockX(c), grid.centerBlockZ(r))) {
                 return grid.hit(r, c, highM, steep);
             }
         }

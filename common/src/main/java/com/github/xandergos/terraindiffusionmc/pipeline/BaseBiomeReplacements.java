@@ -1,26 +1,22 @@
 package com.github.xandergos.terraindiffusionmc.pipeline;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
- * Replacements for the classifier's base biomes (vanilla plus Terrain Diffusion's sparse variants) listed in
- * {@code vanilla.disabled_biomes}.
+ * The classifier's base biomes (vanilla plus Terrain Diffusion's sparse variants) and, for each, which base
+ * biome to use instead when it has nothing allowed to place ({@code biomes.allowed}).
  *
- * <p>A disabled biome is replaced by the one the user names ({@code swamp=forest}), or else by the nearest
- * biome in {@link #FALLBACKS} that isn't disabled itself. The fallbacks follow the classifier's own
- * decisions where possible (swamp is a warm lowland dense forest, so it falls back to forest; snowy plains and
- * snowy slopes are the lowland and mountain forms of the same treeless snow), and otherwise keep the same
- * surface blocks and climate.
+ * <p>The fallbacks follow the classifier's own decisions where possible (swamp is a warm lowland dense forest,
+ * so it falls back to forest; snowy plains and snowy slopes are the lowland and mountain forms of the same
+ * treeless snow), and otherwise keep the same surface blocks and climate.
  *
  * <p>No Minecraft dependencies, so it can be tested on its own.
  */
@@ -87,16 +83,6 @@ public final class BaseBiomeReplacements {
         FALLBACKS = Collections.unmodifiableMap(fallbacks);
     }
 
-    /**
-     * Result of applying the config.
-     *
-     * @param candidates for each disabled base id, biome ids to try in order (the first one that exists in the
-     *                   registry is used); base ids that aren't disabled are absent
-     * @param warnings   problems to log (unknown names, nothing left to fall back to)
-     */
-    public record Result(Map<Short, List<String>> candidates, List<String> warnings) {
-    }
-
     private BaseBiomeReplacements() {
     }
 
@@ -105,66 +91,10 @@ public final class BaseBiomeReplacements {
     }
 
     /**
-     * Applies {@code vanilla.disabled_biomes} entries: biome name to the replacement the user chose, or an
-     * empty string to pick one automatically. Names may omit the namespace.
+     * Nearest base biome reachable from {@code start} through {@link #FALLBACKS}, breadth first, for which
+     * {@code usable} holds; {@code start} itself is not considered. Null if none.
      */
-    public static Result compute(Map<String, String> disabledEntries) {
-        List<String> warnings = new ArrayList<>();
-        Map<Short, String> explicit = new LinkedHashMap<>();
-        Set<Short> disabled = new LinkedHashSet<>();
-        List<String> unknown = new ArrayList<>();
-        for (Map.Entry<String, String> entry : disabledEntries.entrySet()) {
-            Short id = baseIdOf(entry.getKey());
-            if (id == null) {
-                unknown.add(entry.getKey());
-                continue;
-            }
-            disabled.add(id);
-            if (!entry.getValue().isEmpty()) {
-                explicit.put(id, qualify(entry.getValue()));
-            }
-        }
-        if (!unknown.isEmpty()) {
-            List<String> names = new ArrayList<>();
-            for (String biome : BIOMES.values()) {
-                names.add(biome.substring(biome.indexOf(':') + 1));
-            }
-            warnings.add("vanilla.disabled_biomes: " + unknown + " not placed by Terrain Diffusion (ignored). "
-                    + "Biomes that can be disabled: " + String.join(", ", names));
-        }
-
-        Map<Short, List<String>> candidates = new LinkedHashMap<>();
-        for (short id : disabled) {
-            List<String> list = new ArrayList<>();
-            String chosen = explicit.get(id);
-            if (chosen != null) {
-                Short chosenBase = baseIdOf(chosen);
-                if (chosenBase == null || !disabled.contains(chosenBase)) {
-                    list.add(chosen);
-                } else {
-                    // The chosen replacement is disabled too: continue from its fallbacks.
-                    Short next = firstEnabledFallback(chosenBase, disabled);
-                    if (next != null) {
-                        list.add(BIOMES.get(next));
-                    }
-                }
-            }
-            Short auto = firstEnabledFallback(id, disabled);
-            if (auto != null && !list.contains(BIOMES.get(auto))) {
-                list.add(BIOMES.get(auto));
-            }
-            if (list.isEmpty()) {
-                warnings.add("vanilla.disabled_biomes: no replacement left for " + BIOMES.get(id)
-                        + " (its fallbacks are disabled too), so it stays enabled.");
-                list.add(BIOMES.get(id));
-            }
-            candidates.put(id, list);
-        }
-        return new Result(candidates, warnings);
-    }
-
-    /** Nearest base biome reachable through {@link #FALLBACKS} that isn't disabled, breadth first. */
-    static Short firstEnabledFallback(short start, Set<Short> disabled) {
+    public static Short firstMatching(short start, Predicate<Short> usable) {
         Deque<Short> queue = new ArrayDeque<>();
         Set<Short> visited = new HashSet<>();
         visited.add(start);
@@ -175,7 +105,7 @@ public final class BaseBiomeReplacements {
                 if (!visited.add(next)) {
                     continue;
                 }
-                if (!disabled.contains(next)) {
+                if (usable.test(next)) {
                     return next;
                 }
                 queue.add(next);
@@ -194,15 +124,5 @@ public final class BaseBiomeReplacements {
             }
         }
         return null;
-    }
-
-    /** Full biome id: base biomes get their own namespace, other names without one default to minecraft. */
-    static String qualify(String name) {
-        String normalized = name.toLowerCase(Locale.ROOT);
-        Short base = baseIdOf(normalized);
-        if (base != null) {
-            return BIOMES.get(base);
-        }
-        return normalized.contains(":") ? normalized : MINECRAFT + normalized;
     }
 }

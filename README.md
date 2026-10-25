@@ -60,15 +60,34 @@ If [Terralith](https://modrinth.com/mod/terralith) is installed, Terrain Diffusi
 - Terralith 2.5.x for 1.20.1 overrides the overworld dimension, which would otherwise replace a Terrain Diffusion world; Terrain Diffusion worlds keep their own overworld. Other world types still get Terralith's.
 - Worlds created with Terralith installed before this support existed already have Terralith's overworld saved, so create a new world.
 
-#### Disabling Terralith biomes
+### Choosing biomes
 
-List Terralith biomes you don't want in `config/terrain-diffusion-mc.properties`; places that would have used them get the vanilla biome Terrain Diffusion would otherwise place:
+`biomes.allowed` in `config/terrain-diffusion-mc.properties` lists the biomes Terrain Diffusion worlds may use. Leave it empty for the default set.
 
 ```
-terralith.disabled_biomes=moonlight_grove, moonlight_valley, amethyst_rainforest
+biomes.allowed=default, biomesoplenty:*, -moonlight_grove, -moonlight_valley
 ```
 
-Names can include the `terralith:` prefix; `all` turns off every Terralith biome. The setting is read at startup and only affects newly generated chunks. If your config file was created by an older version, add the line yourself. Misspelled names are reported in the log.
+| Entry | Meaning |
+|---|---|
+| `default` | Everything Terrain Diffusion places out of the box: the vanilla biomes below, its own `forest_sparse`, `taiga_sparse` and `snowy_taiga_sparse`, and Terralith's 49 biomes when Terralith is installed |
+| `minecraft:birch_forest` | One biome. Vanilla, Terrain Diffusion and Terralith biomes can drop the `namespace:` (`birch_forest`, `shield`) |
+| `biomesoplenty:*` | Every overworld surface biome from a mod. Caves, rivers, beaches, mushroom islands and Nether or End biomes are left out |
+| `-moonlight_grove` | Remove a biome (`-terralith:*` removes a whole mod). Removals apply last |
+
+How the list is used:
+
+- **Biomes Terrain Diffusion has rules for** (the vanilla biomes it places and the 49 Terralith biomes) go where the classifier puts them.
+- **Any other biome** (other vanilla biomes such as `cherry_grove`, or biomes from other mods) is matched to the classifier biome with the closest climate and character, using its temperature, rainfall and tags, and shares that area with it in large regions. For example Biomes O' Plenty's `bayou` and `marsh` share swamp land, `maple_woods` shares taiga. Biomes their mod tags as rare or magical get about a third of a normal share. The log lists where each one went.
+- **A vanilla biome that isn't listed** is replaced by the Terralith biomes that stand in for it (if listed), or else by the nearest listed biome along a fallback chain (swamp falls back to forest, desert to badlands, then savanna, and so on). Oceans only ever become other oceans.
+- Ground blocks follow Terrain Diffusion's surface rules, so biomes it has no rules for get grass and dirt (or sand, snow and stone in the areas where it places those).
+- Read at startup; only newly generated chunks change. Misspelled names and mods that aren't installed are reported in the log.
+
+Vanilla biomes Terrain Diffusion places by default: `plains`, `snowy_plains`, `desert`, `swamp`, `forest`, `taiga`, `snowy_taiga`, `savanna`, `windswept_hills`, `jungle`, `grove`, `snowy_slopes`, `frozen_peaks`, `stony_peaks`, `warm_ocean`, `ocean`, `cold_ocean`, `frozen_ocean`.
+
+Older settings still work: `terralith.disabled_biomes` and `vanilla.disabled_biomes` are applied as removals (`-name`).
+
+Terralith biomes and the vanilla biomes they stand in for:
 
 | Terralith biome | Replaces |
 |---|---|
@@ -121,46 +140,6 @@ Names can include the `terralith:` prefix; `all` turns off every Terralith biome
 | `white_cliffs` | stony peaks (cold coasts) |
 | `wintry_forest` | snowy taiga |
 | `yosemite_lowlands` | sparse forest |
-
-### Disabling vanilla biomes
-
-`vanilla.disabled_biomes` works the same way for the vanilla biomes Terrain Diffusion places (and its own `forest_sparse`, `taiga_sparse` and `snowy_taiga_sparse`). Because there's no biome underneath to fall back to, each one is replaced: by the biome you name after `=`, or else by the first one in the table below that isn't disabled itself.
-
-```
-vanilla.disabled_biomes=swamp, jungle, desert=savanna
-```
-
-- A replacement can be any biome ID, including modded ones (`swamp=minecraft:mangrove_swamp`). Ground blocks follow Terrain Diffusion's surface rules, so biomes it doesn't know get grass and dirt.
-- Terralith biomes that stand in for a disabled biome still appear unless you disable them too (for example `orchid_swamp` on swamp ground).
-- Read at startup; only affects newly generated chunks. Misspelled names are reported in the log.
-
-| Biome | Replaced by (first one not disabled) |
-|---|---|
-| `plains` | meadow, forest_sparse |
-| `meadow` | plains, forest_sparse |
-| `grove` | plains, meadow |
-| `snowy_plains` | snowy_slopes, snowy_taiga_sparse |
-| `snowy_slopes` | snowy_plains, frozen_peaks |
-| `frozen_peaks` | snowy_slopes, stony_peaks |
-| `stony_peaks` | windswept_hills, frozen_peaks |
-| `windswept_hills` | stony_peaks, grove |
-| `desert` | badlands, savanna |
-| `badlands` | desert, savanna |
-| `savanna` | forest_sparse, plains |
-| `jungle` | forest, forest_sparse |
-| `swamp` | forest, plains |
-| `forest` | forest_sparse, plains |
-| `forest_sparse` | forest, plains |
-| `taiga` | taiga_sparse, forest |
-| `taiga_sparse` | taiga, plains |
-| `snowy_taiga` | snowy_taiga_sparse, taiga |
-| `snowy_taiga_sparse` | snowy_taiga, snowy_plains |
-| `warm_ocean` | ocean, cold_ocean |
-| `ocean` | cold_ocean, warm_ocean |
-| `cold_ocean` | ocean, frozen_ocean |
-| `frozen_ocean` | cold_ocean, ocean |
-
-If those are disabled too, it keeps following the chain (for example plains, meadow and forest_sparse all disabled gives forest).
 
 ## Configuration
 

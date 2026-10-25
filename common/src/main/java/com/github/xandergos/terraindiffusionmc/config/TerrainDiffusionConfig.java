@@ -69,12 +69,17 @@ public final class TerrainDiffusionConfig {
         return BUILD_VARIANT;
     }
 
+    /** Raw value of {@code biomes.allowed} (see BiomeAllowlist); empty means the default biomes. */
+    public static String biomesAllowed() {
+        return PROPERTIES.getProperty("biomes.allowed", "");
+    }
+
     /** Value of {@code terralith.disabled_biomes} that turns off every Terralith biome. */
     public static final String ALL_TERRALITH_BIOMES = "all";
 
     /**
-     * Terralith biome names (without the {@code terralith:} prefix, lowercase) listed in
-     * {@code terralith.disabled_biomes}, or a set containing {@link #ALL_TERRALITH_BIOMES}. Names may be separated
+     * Legacy setting, applied as removals from {@code biomes.allowed}. Terralith biome names (without the
+     * {@code terralith:} prefix, lowercase) listed in {@code terralith.disabled_biomes}, or a set containing {@link #ALL_TERRALITH_BIOMES}. Names may be separated
      * by commas, spaces or semicolons and may include the namespace.
      */
     public static Set<String> terralithDisabledBiomes() {
@@ -93,8 +98,9 @@ public final class TerrainDiffusionConfig {
     }
 
     /**
-     * Entries of {@code vanilla.disabled_biomes}: biome name to the replacement written after "=", or an empty
-     * string when none was given. Entries are separated by commas, semicolons or spaces; spaces around "=" are
+     * Legacy setting, applied as removals from {@code biomes.allowed}. Entries of
+     * {@code vanilla.disabled_biomes}: biome name to the replacement written after "=", or an empty string when
+     * none was given (replacements are no longer used). Entries are separated by commas, semicolons or spaces; spaces around "=" are
      * allowed. Names are lowercased; namespaces are kept as written.
      */
     public static Map<String, String> vanillaDisabledBiomes() {
